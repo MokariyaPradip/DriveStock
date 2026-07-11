@@ -87,3 +87,29 @@ def update_vehicle(
     db.commit()
     db.refresh(vehicle)
     return vehicle
+
+
+@router.post("/{vehicle_id}/purchase", response_model=VehicleRead)
+def purchase_vehicle(
+    vehicle_id: int,
+    db: Session = Depends(get_db),
+    _: object = Depends(get_current_user),
+) -> Vehicle:
+    try:
+        vehicle = db.scalar(select(Vehicle).where(Vehicle.id == vehicle_id))
+        if vehicle is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vehicle not found")
+
+        if vehicle.quantity <= 0:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Vehicle out of stock")
+
+        vehicle.quantity -= 1
+        db.commit()
+        db.refresh(vehicle)
+        return vehicle
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception:
+        db.rollback()
+        raise
