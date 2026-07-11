@@ -222,6 +222,62 @@ def test_update_missing_vehicle_returns_not_found(client_and_session_factory):
     assert response.status_code == 404
 
 
+def test_purchase_vehicle_decrements_stock_by_one(client_and_session_factory):
+    client, _ = client_and_session_factory
+    token = register_and_login(client)
+
+    create_response = client.post(
+        "/api/vehicles",
+        json={"make": "Toyota", "model": "Corolla", "category": "Sedan", "price": 25000, "quantity": 5},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert create_response.status_code == 201
+    vehicle_id = create_response.json()["id"]
+
+    response = client.post(
+        f"/api/vehicles/{vehicle_id}/purchase",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["id"] == vehicle_id
+    assert data["quantity"] == 4
+
+
+def test_purchase_vehicle_blocks_when_out_of_stock(client_and_session_factory):
+    client, _ = client_and_session_factory
+    token = register_and_login(client)
+
+    create_response = client.post(
+        "/api/vehicles",
+        json={"make": "Honda", "model": "Civic", "category": "Sedan", "price": 27000, "quantity": 0},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert create_response.status_code == 201
+    vehicle_id = create_response.json()["id"]
+
+    response = client.post(
+        f"/api/vehicles/{vehicle_id}/purchase",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Vehicle out of stock"
+
+
+def test_purchase_missing_vehicle_returns_not_found(client_and_session_factory):
+    client, _ = client_and_session_factory
+    token = register_and_login(client)
+
+    response = client.post(
+        "/api/vehicles/9999/purchase",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 404
+
+
 def test_search_vehicles_by_make(client_and_session_factory):
     client, _ = client_and_session_factory
     token = register_and_login(client)
