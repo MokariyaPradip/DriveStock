@@ -1,4 +1,8 @@
-import { BrowserRouter, NavLink, Navigate, Route, Routes } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { BrowserRouter, NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
+
+import { loginUser, registerUser } from './api/auth'
+import { clearStoredToken, getStoredToken, isAuthenticated, setStoredToken } from './lib/auth'
 
 function ShellLayout({ children }) {
   const navLinkClass = ({ isActive }) =>
@@ -42,6 +46,23 @@ function ShellLayout({ children }) {
   )
 }
 
+function useAuthRedirect() {
+  const navigate = useNavigate()
+  const location = useLocation()
+
+  useEffect(() => {
+    const token = getStoredToken()
+
+    if (token && (location.pathname === '/login' || location.pathname === '/register')) {
+      navigate('/', { replace: true })
+    }
+
+    if (!token && location.pathname === '/') {
+      navigate('/login', { replace: true })
+    }
+  }, [location.pathname, navigate])
+}
+
 function AuthCard({ title, subtitle, children }) {
   return (
     <section className="mx-auto w-full max-w-md rounded-3xl border border-white/80 bg-white/90 p-8 shadow-[0_30px_80px_rgba(15,23,42,0.12)] backdrop-blur">
@@ -56,6 +77,19 @@ function AuthCard({ title, subtitle, children }) {
 }
 
 function DashboardPage() {
+  const navigate = useNavigate()
+  const [token, setToken] = useState(getStoredToken())
+
+  useEffect(() => {
+    setToken(getStoredToken())
+  }, [])
+
+  const handleLogout = () => {
+    clearStoredToken()
+    setToken(null)
+    navigate('/login', { replace: true })
+  }
+
   return (
     <div className="grid w-full gap-6 lg:grid-cols-[1.4fr_0.9fr]">
       <section className="rounded-[2rem] border border-white/80 bg-white/90 p-8 shadow-[0_30px_80px_rgba(15,23,42,0.12)] backdrop-blur">
@@ -70,6 +104,29 @@ function DashboardPage() {
           <div className="rounded-2xl bg-brand-50 px-5 py-4 text-sm font-medium text-brand-900 ring-1 ring-brand-100">
             Shell ready for API integration
           </div>
+        </div>
+
+        <div className="mt-6 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <span className="text-sm font-medium text-slate-600">Session:</span>
+          <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">
+            {token ? 'Authenticated' : 'No token found'}
+          </span>
+          {token ? (
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="ml-auto rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+            >
+              Log out
+            </button>
+          ) : (
+            <NavLink
+              to="/login"
+              className="ml-auto rounded-full bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-700"
+            >
+              Sign in
+            </NavLink>
+          )}
         </div>
 
         <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -102,13 +159,42 @@ function DashboardPage() {
 }
 
 function LoginPage() {
+  const navigate = useNavigate()
+  const [form, setForm] = useState({ email: '', password: '' })
+  const [error, setError] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const handleChange = (event) => {
+    const { name, value } = event.target
+    setForm((current) => ({ ...current, [name]: value }))
+  }
+
+  const handleSubmit = async (event) => {
+    event.preventDefault()
+    setError('')
+    setIsSubmitting(true)
+
+    try {
+      const response = await loginUser(form)
+      setStoredToken(response.access_token)
+      navigate('/', { replace: true })
+    } catch (submissionError) {
+      setError(submissionError?.response?.data?.detail || 'Unable to sign in. Please check your credentials.')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
   return (
     <AuthCard title="Welcome back" subtitle="Sign in to continue managing your dealership inventory.">
-      <form className="space-y-4">
+      <form className="space-y-4" onSubmit={handleSubmit}>
         <label className="block">
           <span className="mb-2 block text-sm font-medium text-slate-700">Email</span>
           <input
             type="email"
+            name="email"
+            value={form.email}
+            onChange={handleChange}
             placeholder="you@example.com"
             className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-0 transition placeholder:text-slate-400 focus:border-brand-400 focus:ring-4 focus:ring-brand-100"
           />
@@ -117,15 +203,20 @@ function LoginPage() {
           <span className="mb-2 block text-sm font-medium text-slate-700">Password</span>
           <input
             type="password"
+            name="password"
+            value={form.password}
+            onChange={handleChange}
             placeholder="••••••••"
             className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-brand-400 focus:ring-4 focus:ring-brand-100"
           />
         </label>
+        {error ? <p className="rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-700 ring-1 ring-rose-200">{error}</p> : null}
         <button
-          type="button"
-          className="w-full rounded-2xl bg-brand-600 px-4 py-3 text-sm font-semibold text-white shadow-glow transition hover:bg-brand-700"
+          type="submit"
+          disabled={isSubmitting}
+          className="w-full rounded-2xl bg-brand-600 px-4 py-3 text-sm font-semibold text-white shadow-glow transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-70"
         >
-          Sign in
+          {isSubmitting ? 'Signing in…' : 'Sign in'}
         </button>
       </form>
     </AuthCard>
@@ -133,13 +224,43 @@ function LoginPage() {
 }
 
 function RegisterPage() {
+  const navigate = useNavigate()
+  const [form, setForm] = useState({ email: '', password: '' })
+  const [error, setError] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const handleChange = (event) => {
+    const { name, value } = event.target
+    setForm((current) => ({ ...current, [name]: value }))
+  }
+
+  const handleSubmit = async (event) => {
+    event.preventDefault()
+    setError('')
+    setIsSubmitting(true)
+
+    try {
+      await registerUser(form)
+      const response = await loginUser(form)
+      setStoredToken(response.access_token)
+      navigate('/', { replace: true })
+    } catch (submissionError) {
+      setError(submissionError?.response?.data?.detail || 'Unable to create account. Please try again.')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
   return (
     <AuthCard title="Create your account" subtitle="Register to start using the DriveStock dashboard.">
-      <form className="space-y-4">
+      <form className="space-y-4" onSubmit={handleSubmit}>
         <label className="block">
           <span className="mb-2 block text-sm font-medium text-slate-700">Email</span>
           <input
             type="email"
+            name="email"
+            value={form.email}
+            onChange={handleChange}
             placeholder="you@example.com"
             className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-brand-400 focus:ring-4 focus:ring-brand-100"
           />
@@ -148,15 +269,20 @@ function RegisterPage() {
           <span className="mb-2 block text-sm font-medium text-slate-700">Password</span>
           <input
             type="password"
+            name="password"
+            value={form.password}
+            onChange={handleChange}
             placeholder="Create a secure password"
             className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-brand-400 focus:ring-4 focus:ring-brand-100"
           />
         </label>
+        {error ? <p className="rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-700 ring-1 ring-rose-200">{error}</p> : null}
         <button
-          type="button"
-          className="w-full rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+          type="submit"
+          disabled={isSubmitting}
+          className="w-full rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70"
         >
-          Create account
+          {isSubmitting ? 'Creating…' : 'Create account'}
         </button>
       </form>
     </AuthCard>
@@ -166,14 +292,22 @@ function RegisterPage() {
 export default function App() {
   return (
     <BrowserRouter>
-      <ShellLayout>
-        <Routes>
-          <Route path="/" element={<DashboardPage />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </ShellLayout>
+      <AuthGate />
     </BrowserRouter>
+  )
+}
+
+function AuthGate() {
+  useAuthRedirect()
+
+  return (
+    <ShellLayout>
+      <Routes>
+        <Route path="/" element={isAuthenticated() ? <DashboardPage /> : <Navigate to="/login" replace />} />
+        <Route path="/login" element={isAuthenticated() ? <Navigate to="/" replace /> : <LoginPage />} />
+        <Route path="/register" element={isAuthenticated() ? <Navigate to="/" replace /> : <RegisterPage />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </ShellLayout>
   )
 }
