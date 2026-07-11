@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { BrowserRouter, NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 
 import { loginUser, registerUser } from './api/auth'
+import { fetchVehicles } from './api/vehicles'
 import { clearStoredToken, getStoredToken, isAuthenticated, setStoredToken } from './lib/auth'
 
 function ShellLayout({ children }) {
@@ -79,10 +80,47 @@ function AuthCard({ title, subtitle, children }) {
 function DashboardPage() {
   const navigate = useNavigate()
   const [token, setToken] = useState(getStoredToken())
+  const [vehicles, setVehicles] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
   useEffect(() => {
     setToken(getStoredToken())
   }, [])
+
+  useEffect(() => {
+    let isMounted = true
+
+    async function loadVehicles() {
+      setLoading(true)
+      setError('')
+
+      try {
+        const data = await fetchVehicles()
+        if (isMounted) {
+          setVehicles(data)
+        }
+      } catch (fetchError) {
+        if (isMounted) {
+          setError(fetchError?.response?.data?.detail || 'Unable to load vehicles right now.')
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false)
+        }
+      }
+    }
+
+    if (token) {
+      loadVehicles()
+    } else {
+      setLoading(false)
+    }
+
+    return () => {
+      isMounted = false
+    }
+  }, [token])
 
   const handleLogout = () => {
     clearStoredToken()
@@ -131,8 +169,8 @@ function DashboardPage() {
 
         <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {[
-            ['Vehicles', '0', 'Ready to load from the API'],
-            ['In stock', '0', 'Purchase actions will update here'],
+            ['Vehicles', String(vehicles.length), 'Ready to browse from the API'],
+            ['In stock', String(vehicles.reduce((total, vehicle) => total + vehicle.quantity, 0)), 'Inventory quantity totals'],
             ['Admin tools', 'Locked', 'Create, edit, delete, and restock'],
           ].map(([label, value, hint]) => (
             <article key={label} className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
@@ -142,6 +180,58 @@ function DashboardPage() {
             </article>
           ))}
         </div>
+
+        <section className="mt-8 rounded-[2rem] border border-slate-200 bg-white/95 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.08)]">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.3em] text-brand-700">Vehicle inventory</p>
+              <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-900">Current stock</h2>
+            </div>
+            <p className="text-sm text-slate-500">Purchase is disabled when quantity reaches zero.</p>
+          </div>
+
+          {loading ? <p className="mt-6 text-sm text-slate-500">Loading vehicles…</p> : null}
+          {error ? <p className="mt-6 rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-700 ring-1 ring-rose-200">{error}</p> : null}
+
+          {!loading && !error && vehicles.length === 0 ? (
+            <div className="mt-6 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center">
+              <p className="text-lg font-semibold text-slate-900">No vehicles yet</p>
+              <p className="mt-2 text-sm text-slate-500">Vehicles added through the API will appear here.</p>
+            </div>
+          ) : null}
+
+          <div className="mt-6 grid gap-4 md:grid-cols-2">
+            {vehicles.map((vehicle) => (
+              <article key={vehicle.id} className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.3em] text-brand-700">{vehicle.category}</p>
+                    <h3 className="mt-2 text-2xl font-black tracking-tight text-slate-900">
+                      {vehicle.make} {vehicle.model}
+                    </h3>
+                  </div>
+                  <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">
+                    Qty {vehicle.quantity}
+                  </span>
+                </div>
+
+                <div className="mt-6 flex items-end justify-between gap-4">
+                  <div>
+                    <p className="text-sm text-slate-500">Price</p>
+                    <p className="text-2xl font-black text-slate-900">${vehicle.price.toLocaleString()}</p>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={vehicle.quantity === 0}
+                    className="rounded-full bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500"
+                  >
+                    {vehicle.quantity === 0 ? 'Out of stock' : 'Purchase'}
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
       </section>
 
       <aside className="rounded-[2rem] border border-brand-100 bg-gradient-to-br from-brand-900 via-brand-700 to-brand-600 p-8 text-white shadow-glow">
