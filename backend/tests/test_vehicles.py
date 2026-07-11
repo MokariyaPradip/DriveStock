@@ -43,6 +43,15 @@ def register_and_login(client: TestClient) -> str:
     return login_response.json()["access_token"]
 
 
+def register_admin_and_login(client: TestClient) -> str:
+    register_payload = {"email": "admin@example.com", "password": "securepass123"}
+    client.post("/api/auth/register", json=register_payload)
+
+    login_response = client.post("/api/auth/login", json=register_payload)
+    assert login_response.status_code == 200
+    return login_response.json()["access_token"]
+
+
 @pytest.mark.parametrize(
     "method,url,payload",
     [
@@ -272,6 +281,116 @@ def test_purchase_missing_vehicle_returns_not_found(client_and_session_factory):
 
     response = client.post(
         "/api/vehicles/9999/purchase",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 404
+
+
+def test_delete_vehicle_requires_admin_access(client_and_session_factory):
+    client, _ = client_and_session_factory
+    token = register_and_login(client)
+
+    create_response = client.post(
+        "/api/vehicles",
+        json={"make": "Toyota", "model": "Corolla", "category": "Sedan", "price": 25000, "quantity": 5},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert create_response.status_code == 201
+    vehicle_id = create_response.json()["id"]
+
+    response = client.delete(
+        f"/api/vehicles/{vehicle_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Admin access required"
+
+
+def test_delete_vehicle_allows_admin_user(client_and_session_factory):
+    client, _ = client_and_session_factory
+    token = register_admin_and_login(client)
+
+    create_response = client.post(
+        "/api/vehicles",
+        json={"make": "Toyota", "model": "Corolla", "category": "Sedan", "price": 25000, "quantity": 5},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert create_response.status_code == 201
+    vehicle_id = create_response.json()["id"]
+
+    response = client.delete(
+        f"/api/vehicles/{vehicle_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["id"] == vehicle_id
+
+
+def test_delete_missing_vehicle_returns_not_found(client_and_session_factory):
+    client, _ = client_and_session_factory
+    token = register_admin_and_login(client)
+
+    response = client.delete(
+        "/api/vehicles/9999",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 404
+
+
+def test_restock_vehicle_requires_admin_access(client_and_session_factory):
+    client, _ = client_and_session_factory
+    token = register_and_login(client)
+
+    create_response = client.post(
+        "/api/vehicles",
+        json={"make": "Honda", "model": "Civic", "category": "Sedan", "price": 27000, "quantity": 3},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert create_response.status_code == 201
+    vehicle_id = create_response.json()["id"]
+
+    response = client.post(
+        f"/api/vehicles/{vehicle_id}/restock",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Admin access required"
+
+
+def test_restock_vehicle_allows_admin_user(client_and_session_factory):
+    client, _ = client_and_session_factory
+    token = register_admin_and_login(client)
+
+    create_response = client.post(
+        "/api/vehicles",
+        json={"make": "Honda", "model": "Civic", "category": "Sedan", "price": 27000, "quantity": 3},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert create_response.status_code == 201
+    vehicle_id = create_response.json()["id"]
+
+    response = client.post(
+        f"/api/vehicles/{vehicle_id}/restock",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["id"] == vehicle_id
+    assert data["quantity"] == 4
+
+
+def test_restock_missing_vehicle_returns_not_found(client_and_session_factory):
+    client, _ = client_and_session_factory
+    token = register_admin_and_login(client)
+
+    response = client.post(
+        "/api/vehicles/9999/restock",
         headers={"Authorization": f"Bearer {token}"},
     )
 
