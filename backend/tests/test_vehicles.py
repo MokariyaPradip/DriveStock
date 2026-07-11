@@ -7,6 +7,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.core.database import Base, get_db
 from app.main import app
+from app.models import User
 
 
 @pytest.fixture()
@@ -43,9 +44,17 @@ def register_and_login(client: TestClient) -> str:
     return login_response.json()["access_token"]
 
 
-def register_admin_and_login(client: TestClient) -> str:
+def register_admin_and_login(client: TestClient, session_factory) -> str:
     register_payload = {"email": "admin@example.com", "password": "securepass123"}
     client.post("/api/auth/register", json=register_payload)
+
+    db = session_factory()
+    try:
+        user = db.query(User).filter(User.email == register_payload["email"]).one()
+        user.role = "admin"
+        db.commit()
+    finally:
+        db.close()
 
     login_response = client.post("/api/auth/login", json=register_payload)
     assert login_response.status_code == 200
@@ -309,8 +318,8 @@ def test_delete_vehicle_requires_admin_access(client_and_session_factory):
 
 
 def test_delete_vehicle_allows_admin_user(client_and_session_factory):
-    client, _ = client_and_session_factory
-    token = register_admin_and_login(client)
+    client, session_factory = client_and_session_factory
+    token = register_admin_and_login(client, session_factory)
 
     create_response = client.post(
         "/api/vehicles",
@@ -330,8 +339,8 @@ def test_delete_vehicle_allows_admin_user(client_and_session_factory):
 
 
 def test_delete_missing_vehicle_returns_not_found(client_and_session_factory):
-    client, _ = client_and_session_factory
-    token = register_admin_and_login(client)
+    client, session_factory = client_and_session_factory
+    token = register_admin_and_login(client, session_factory)
 
     response = client.delete(
         "/api/vehicles/9999",
@@ -363,8 +372,8 @@ def test_restock_vehicle_requires_admin_access(client_and_session_factory):
 
 
 def test_restock_vehicle_allows_admin_user(client_and_session_factory):
-    client, _ = client_and_session_factory
-    token = register_admin_and_login(client)
+    client, session_factory = client_and_session_factory
+    token = register_admin_and_login(client, session_factory)
 
     create_response = client.post(
         "/api/vehicles",
@@ -386,8 +395,8 @@ def test_restock_vehicle_allows_admin_user(client_and_session_factory):
 
 
 def test_restock_missing_vehicle_returns_not_found(client_and_session_factory):
-    client, _ = client_and_session_factory
-    token = register_admin_and_login(client)
+    client, session_factory = client_and_session_factory
+    token = register_admin_and_login(client, session_factory)
 
     response = client.post(
         "/api/vehicles/9999/restock",

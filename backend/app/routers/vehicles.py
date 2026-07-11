@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.models import Vehicle
-from app.routers.auth import get_current_user
+from app.routers.auth import get_current_user, require_admin
 from app.schemas import VehicleCreate, VehicleRead
 
 router = APIRouter(prefix="/api/vehicles", tags=["vehicles"])
@@ -104,6 +104,51 @@ def purchase_vehicle(
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Vehicle out of stock")
 
         vehicle.quantity -= 1
+        db.commit()
+        db.refresh(vehicle)
+        return vehicle
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception:
+        db.rollback()
+        raise
+
+
+@router.delete("/{vehicle_id}", response_model=VehicleRead)
+def delete_vehicle(
+    vehicle_id: int,
+    db: Session = Depends(get_db),
+    _: object = Depends(require_admin),
+) -> Vehicle:
+    try:
+        vehicle = db.scalar(select(Vehicle).where(Vehicle.id == vehicle_id))
+        if vehicle is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vehicle not found")
+
+        db.delete(vehicle)
+        db.commit()
+        return vehicle
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception:
+        db.rollback()
+        raise
+
+
+@router.post("/{vehicle_id}/restock", response_model=VehicleRead)
+def restock_vehicle(
+    vehicle_id: int,
+    db: Session = Depends(get_db),
+    _: object = Depends(require_admin),
+) -> Vehicle:
+    try:
+        vehicle = db.scalar(select(Vehicle).where(Vehicle.id == vehicle_id))
+        if vehicle is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vehicle not found")
+
+        vehicle.quantity += 1
         db.commit()
         db.refresh(vehicle)
         return vehicle
