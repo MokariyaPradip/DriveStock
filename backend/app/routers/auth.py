@@ -18,10 +18,14 @@ def normalize_email(email: str) -> str:
     return email.strip().lower()
 
 
+def get_user_by_email(db: Session, email: str) -> User | None:
+    return db.scalar(select(User).where(User.email == normalize_email(email)))
+
+
 @router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
 def register_user(payload: UserCreate, db: Session = Depends(get_db)) -> User:
     email = normalize_email(payload.email)
-    existing_user = db.scalar(select(User).where(User.email == email))
+    existing_user = get_user_by_email(db, email)
     if existing_user is not None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
 
@@ -35,7 +39,7 @@ def register_user(payload: UserCreate, db: Session = Depends(get_db)) -> User:
 @router.post("/login", response_model=TokenResponse)
 def login_user(payload: UserLogin, db: Session = Depends(get_db)) -> TokenResponse:
     email = normalize_email(payload.email)
-    user = db.scalar(select(User).where(User.email == email))
+    user = get_user_by_email(db, email)
     if user is None or not verify_password(payload.password, user.hashed_password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
 
@@ -53,7 +57,7 @@ def get_current_user(token: str = Security(oauth2_scheme), db: Session = Depends
     if not email:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
 
-    user = db.scalar(select(User).where(User.email == email))
+    user = get_user_by_email(db, email)
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
 

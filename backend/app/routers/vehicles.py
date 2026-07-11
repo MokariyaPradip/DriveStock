@@ -10,23 +10,38 @@ from app.schemas import VehicleCreate, VehicleRead
 router = APIRouter(prefix="/api/vehicles", tags=["vehicles"])
 
 
+def get_vehicle_or_404(db: Session, vehicle_id: int) -> Vehicle:
+    vehicle = db.scalar(select(Vehicle).where(Vehicle.id == vehicle_id))
+    if vehicle is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vehicle not found")
+    return vehicle
+
+
+def save_vehicle(db: Session, vehicle: Vehicle) -> Vehicle:
+    db.commit()
+    db.refresh(vehicle)
+    return vehicle
+
+
+def apply_vehicle_payload(vehicle: Vehicle, payload: VehicleCreate) -> Vehicle:
+    vehicle.make = payload.make
+    vehicle.model = payload.model
+    vehicle.category = payload.category
+    vehicle.price = payload.price
+    vehicle.quantity = payload.quantity
+    return vehicle
+
+
 @router.post("", response_model=VehicleRead, status_code=status.HTTP_201_CREATED)
 def create_vehicle(
     payload: VehicleCreate,
     db: Session = Depends(get_db),
     _: object = Depends(get_current_user),
 ) -> Vehicle:
-    vehicle = Vehicle(
-        make=payload.make,
-        model=payload.model,
-        category=payload.category,
-        price=payload.price,
-        quantity=payload.quantity,
-    )
+    vehicle = Vehicle()
+    apply_vehicle_payload(vehicle, payload)
     db.add(vehicle)
-    db.commit()
-    db.refresh(vehicle)
-    return vehicle
+    return save_vehicle(db, vehicle)
 
 
 @router.get("", response_model=list[VehicleRead])
@@ -74,19 +89,8 @@ def update_vehicle(
     db: Session = Depends(get_db),
     _: object = Depends(get_current_user),
 ) -> Vehicle:
-    vehicle = db.scalar(select(Vehicle).where(Vehicle.id == vehicle_id))
-    if vehicle is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vehicle not found")
-
-    vehicle.make = payload.make
-    vehicle.model = payload.model
-    vehicle.category = payload.category
-    vehicle.price = payload.price
-    vehicle.quantity = payload.quantity
-
-    db.commit()
-    db.refresh(vehicle)
-    return vehicle
+    vehicle = apply_vehicle_payload(get_vehicle_or_404(db, vehicle_id), payload)
+    return save_vehicle(db, vehicle)
 
 
 @router.post("/{vehicle_id}/purchase", response_model=VehicleRead)
@@ -96,17 +100,13 @@ def purchase_vehicle(
     _: object = Depends(get_current_user),
 ) -> Vehicle:
     try:
-        vehicle = db.scalar(select(Vehicle).where(Vehicle.id == vehicle_id))
-        if vehicle is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vehicle not found")
+        vehicle = get_vehicle_or_404(db, vehicle_id)
 
         if vehicle.quantity <= 0:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Vehicle out of stock")
 
         vehicle.quantity -= 1
-        db.commit()
-        db.refresh(vehicle)
-        return vehicle
+        return save_vehicle(db, vehicle)
     except HTTPException:
         db.rollback()
         raise
@@ -122,9 +122,7 @@ def delete_vehicle(
     _: object = Depends(require_admin),
 ) -> Vehicle:
     try:
-        vehicle = db.scalar(select(Vehicle).where(Vehicle.id == vehicle_id))
-        if vehicle is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vehicle not found")
+        vehicle = get_vehicle_or_404(db, vehicle_id)
 
         db.delete(vehicle)
         db.commit()
@@ -144,14 +142,10 @@ def restock_vehicle(
     _: object = Depends(require_admin),
 ) -> Vehicle:
     try:
-        vehicle = db.scalar(select(Vehicle).where(Vehicle.id == vehicle_id))
-        if vehicle is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vehicle not found")
+        vehicle = get_vehicle_or_404(db, vehicle_id)
 
         vehicle.quantity += 1
-        db.commit()
-        db.refresh(vehicle)
-        return vehicle
+        return save_vehicle(db, vehicle)
     except HTTPException:
         db.rollback()
         raise
