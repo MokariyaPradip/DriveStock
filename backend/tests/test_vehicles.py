@@ -128,3 +128,108 @@ def test_get_vehicles_returns_created_vehicle_for_authenticated_user(client_and_
     data = list_response.json()
     assert isinstance(data, list)
     assert any(vehicle["make"] == payload["make"] and vehicle["model"] == payload["model"] for vehicle in data)
+
+
+def create_vehicle(client: TestClient, token: str, payload: dict) -> None:
+    response = client.post(
+        "/api/vehicles",
+        json=payload,
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 201
+
+
+def test_search_vehicles_by_make(client_and_session_factory):
+    client, _ = client_and_session_factory
+    token = register_and_login(client)
+
+    create_vehicle(
+        client,
+        token,
+        {"make": "Toyota", "model": "Corolla", "category": "Sedan", "price": 25000, "quantity": 5},
+    )
+    create_vehicle(
+        client,
+        token,
+        {"make": "Honda", "model": "Civic", "category": "Sedan", "price": 27000, "quantity": 3},
+    )
+
+    response = client.get("/api/vehicles/search", params={"make": "toyota"}, headers={"Authorization": f"Bearer {token}"})
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]["make"] == "Toyota"
+
+
+def test_search_vehicles_by_model(client_and_session_factory):
+    client, _ = client_and_session_factory
+    token = register_and_login(client)
+
+    create_vehicle(
+        client,
+        token,
+        {"make": "Toyota", "model": "Corolla", "category": "Sedan", "price": 25000, "quantity": 5},
+    )
+    create_vehicle(
+        client,
+        token,
+        {"make": "Honda", "model": "Civic", "category": "Sedan", "price": 27000, "quantity": 3},
+    )
+
+    response = client.get("/api/vehicles/search", params={"model": "civic"}, headers={"Authorization": f"Bearer {token}"})
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]["model"] == "Civic"
+
+
+def test_search_vehicles_by_category(client_and_session_factory):
+    client, _ = client_and_session_factory
+    token = register_and_login(client)
+
+    create_vehicle(
+        client,
+        token,
+        {"make": "Toyota", "model": "Corolla", "category": "Sedan", "price": 25000, "quantity": 5},
+    )
+    create_vehicle(
+        client,
+        token,
+        {"make": "Ford", "model": "Ranger", "category": "Truck", "price": 35000, "quantity": 2},
+    )
+
+    response = client.get("/api/vehicles/search", params={"category": "sedan"}, headers={"Authorization": f"Bearer {token}"})
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]["category"] == "Sedan"
+
+
+def test_search_vehicles_by_price_range(client_and_session_factory):
+    client, _ = client_and_session_factory
+    token = register_and_login(client)
+
+    create_vehicle(
+        client,
+        token,
+        {"make": "Toyota", "model": "Corolla", "category": "Sedan", "price": 25000, "quantity": 5},
+    )
+    create_vehicle(
+        client,
+        token,
+        {"make": "BMW", "model": "X5", "category": "SUV", "price": 65000, "quantity": 1},
+    )
+
+    response = client.get(
+        "/api/vehicles/search",
+        params={"min_price": 20000, "max_price": 30000},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]["price"] == 25000
