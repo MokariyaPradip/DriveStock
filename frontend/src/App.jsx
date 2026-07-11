@@ -2,8 +2,23 @@ import { useEffect, useState } from 'react'
 import { BrowserRouter, NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 
 import { loginUser, registerUser } from './api/auth'
-import { fetchVehicles } from './api/vehicles'
-import { clearStoredToken, getStoredToken, isAuthenticated, setStoredToken } from './lib/auth'
+import {
+  createVehicle,
+  deleteVehicle,
+  fetchVehicles,
+  purchaseVehicle,
+  restockVehicle,
+  searchVehicles,
+  updateVehicle,
+} from './api/vehicles'
+import {
+  clearStoredToken,
+  getStoredToken,
+  getStoredTokenPayload,
+  getUserRole,
+  isAuthenticated,
+  setStoredToken,
+} from './lib/auth'
 
 function ShellLayout({ children }) {
   const navLinkClass = ({ isActive }) =>
@@ -83,9 +98,36 @@ function DashboardPage() {
   const [vehicles, setVehicles] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [isAdmin, setIsAdmin] = useState(getUserRole() === 'admin')
+  const [userEmail, setUserEmail] = useState('')
+
+  // Search state
+  const [searchParams, setSearchParams] = useState({
+    make: '',
+    model: '',
+    category: '',
+    min_price: '',
+    max_price: '',
+  })
+  const [showFilters, setShowFilters] = useState(false)
+
+  // Modal form state
+  const [modalOpen, setModalOpen] = useState(false)
+  const [editingVehicle, setEditingVehicle] = useState(null)
+  const [modalForm, setModalForm] = useState({
+    make: '',
+    model: '',
+    category: '',
+    price: '',
+    quantity: '',
+  })
 
   useEffect(() => {
-    setToken(getStoredToken())
+    const currentToken = getStoredToken()
+    setToken(currentToken)
+    setIsAdmin(getUserRole() === 'admin')
+    const payload = getStoredTokenPayload()
+    setUserEmail(payload?.sub || '')
   }, [])
 
   useEffect(() => {
@@ -128,6 +170,144 @@ function DashboardPage() {
     navigate('/login', { replace: true })
   }
 
+  // Search logic
+  const handleSearch = async (e) => {
+    if (e) e.preventDefault()
+    setLoading(true)
+    setError('')
+    try {
+      const params = {}
+      if (searchParams.make.trim()) params.make = searchParams.make.trim()
+      if (searchParams.model.trim()) params.model = searchParams.model.trim()
+      if (searchParams.category.trim()) params.category = searchParams.category.trim()
+      if (searchParams.min_price) params.min_price = parseInt(searchParams.min_price)
+      if (searchParams.max_price) params.max_price = parseInt(searchParams.max_price)
+
+      const data = await searchVehicles(params)
+      setVehicles(data)
+    } catch (err) {
+      setError(err?.response?.data?.detail || 'Unable to filter vehicles.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleClearFilters = async () => {
+    setSearchParams({
+      make: '',
+      model: '',
+      category: '',
+      min_price: '',
+      max_price: '',
+    })
+    setLoading(true)
+    setError('')
+    try {
+      const data = await fetchVehicles()
+      setVehicles(data)
+    } catch (err) {
+      setError(err?.response?.data?.detail || 'Unable to load vehicles.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Purchase logic
+  const handlePurchase = async (vehicleId) => {
+    try {
+      setError('')
+      const updated = await purchaseVehicle(vehicleId)
+      setVehicles((current) =>
+        current.map((v) => (v.id === vehicleId ? updated : v))
+      )
+    } catch (err) {
+      setError(err?.response?.data?.detail || 'Purchase failed.')
+    }
+  }
+
+  // Restock logic (Admin only)
+  const handleRestock = async (vehicleId) => {
+    try {
+      setError('')
+      const updated = await restockVehicle(vehicleId)
+      setVehicles((current) =>
+        current.map((v) => (v.id === vehicleId ? updated : v))
+      )
+    } catch (err) {
+      setError(err?.response?.data?.detail || 'Restock failed.')
+    }
+  }
+
+  // Delete logic (Admin only)
+  const handleDelete = async (vehicleId) => {
+    if (!window.confirm('Are you sure you want to delete this vehicle?')) return
+    try {
+      setError('')
+      await deleteVehicle(vehicleId)
+      setVehicles((current) => current.filter((v) => v.id !== vehicleId))
+    } catch (err) {
+      setError(err?.response?.data?.detail || 'Delete failed.')
+    }
+  }
+
+  // Modal Form helpers
+  const openAddModal = () => {
+    setEditingVehicle(null)
+    setModalForm({
+      make: '',
+      model: '',
+      category: '',
+      price: '',
+      quantity: '',
+    })
+    setModalOpen(true)
+  }
+
+  const openEditModal = (vehicle) => {
+    setEditingVehicle(vehicle)
+    setModalForm({
+      make: vehicle.make,
+      model: vehicle.model,
+      category: vehicle.category,
+      price: String(vehicle.price),
+      quantity: String(vehicle.quantity),
+    })
+    setModalOpen(true)
+  }
+
+  const handleModalSubmit = async (e) => {
+    e.preventDefault()
+    setError('')
+
+    if (!modalForm.make.trim() || !modalForm.model.trim() || !modalForm.category.trim()) {
+      setError('Please fill out all required fields.')
+      return
+    }
+
+    const payload = {
+      make: modalForm.make.trim(),
+      model: modalForm.model.trim(),
+      category: modalForm.category.trim(),
+      price: parseInt(modalForm.price) || 0,
+      quantity: parseInt(modalForm.quantity) || 0,
+    }
+
+    try {
+      if (editingVehicle) {
+        const updated = await updateVehicle(editingVehicle.id, payload)
+        setVehicles((current) =>
+          current.map((v) => (v.id === editingVehicle.id ? updated : v))
+        )
+      } else {
+        const created = await createVehicle(payload)
+        setVehicles((current) => [...current, created])
+      }
+      setModalOpen(false)
+    } catch (err) {
+      setError(err?.response?.data?.detail || 'Failed to save vehicle details.')
+    }
+  }
+
   return (
     <div className="grid w-full gap-6 lg:grid-cols-[1.4fr_0.9fr]">
       <section className="rounded-[2rem] border border-white/80 bg-white/90 p-8 shadow-[0_30px_80px_rgba(15,23,42,0.12)] backdrop-blur">
@@ -140,14 +320,14 @@ function DashboardPage() {
             </p>
           </div>
           <div className="rounded-2xl bg-brand-50 px-5 py-4 text-sm font-medium text-brand-900 ring-1 ring-brand-100">
-            Shell ready for API integration
+            {isAdmin ? 'Admin Console Active' : 'Dealership Agent Active'}
           </div>
         </div>
 
         <div className="mt-6 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
           <span className="text-sm font-medium text-slate-600">Session:</span>
           <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">
-            {token ? 'Authenticated' : 'No token found'}
+            {token ? `Authenticated as ${userEmail}` : 'No token found'}
           </span>
           {token ? (
             <button
@@ -171,7 +351,7 @@ function DashboardPage() {
           {[
             ['Vehicles', String(vehicles.length), 'Ready to browse from the API'],
             ['In stock', String(vehicles.reduce((total, vehicle) => total + vehicle.quantity, 0)), 'Inventory quantity totals'],
-            ['Admin tools', 'Locked', 'Create, edit, delete, and restock'],
+            ['Admin tools', isAdmin ? 'Unlocked' : 'Locked', isAdmin ? 'Create, edit, delete, and restock enabled' : 'Requires admin role to modify'],
           ].map(([label, value, hint]) => (
             <article key={label} className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
               <p className="text-sm font-medium text-slate-500">{label}</p>
@@ -182,51 +362,179 @@ function DashboardPage() {
         </div>
 
         <section className="mt-8 rounded-[2rem] border border-slate-200 bg-white/95 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.08)]">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between border-b border-slate-100 pb-4 mb-6">
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.3em] text-brand-700">Vehicle inventory</p>
               <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-900">Current stock</h2>
             </div>
-            <p className="text-sm text-slate-500">Purchase is disabled when quantity reaches zero.</p>
+            <div className="flex flex-wrap items-center gap-3">
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={openAddModal}
+                  className="rounded-full bg-slate-950 px-5 py-2 text-sm font-semibold text-white shadow-glow transition hover:bg-slate-800"
+                >
+                  + Add Vehicle
+                </button>
+              )}
+            </div>
           </div>
+
+          {/* Search Panel */}
+          <form onSubmit={handleSearch} className="mb-6 space-y-4">
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  placeholder="Search by make..."
+                  value={searchParams.make}
+                  onChange={(e) => setSearchParams({ ...searchParams, make: e.target.value })}
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 pl-10 text-sm outline-none transition focus:border-brand-400 focus:ring-4 focus:ring-brand-100"
+                />
+                <span className="absolute left-3.5 top-3.5 text-slate-400">🔍</span>
+              </div>
+              <button
+                type="submit"
+                className="rounded-2xl bg-brand-600 px-6 py-3 text-sm font-semibold text-white shadow-glow transition hover:bg-brand-700"
+              >
+                Search
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowFilters(!showFilters)}
+                className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+              >
+                {showFilters ? 'Hide Filters' : 'Filters'}
+              </button>
+              {(searchParams.make || searchParams.model || searchParams.category || searchParams.min_price || searchParams.max_price) && (
+                <button
+                  type="button"
+                  onClick={handleClearFilters}
+                  className="rounded-2xl border border-slate-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-600 transition hover:bg-rose-100"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+
+            {showFilters && (
+              <div className="grid gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-2 lg:grid-cols-4 animate-fade-in">
+                <label className="block">
+                  <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-500">Model</span>
+                  <input
+                    type="text"
+                    placeholder="e.g. Civic"
+                    value={searchParams.model}
+                    onChange={(e) => setSearchParams({ ...searchParams, model: e.target.value })}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-500">Category</span>
+                  <input
+                    type="text"
+                    placeholder="e.g. Sedan"
+                    value={searchParams.category}
+                    onChange={(e) => setSearchParams({ ...searchParams, category: e.target.value })}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-500">Min Price ($)</span>
+                  <input
+                    type="number"
+                    placeholder="0"
+                    value={searchParams.min_price}
+                    onChange={(e) => setSearchParams({ ...searchParams, min_price: e.target.value })}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-500">Max Price ($)</span>
+                  <input
+                    type="number"
+                    placeholder="100000"
+                    value={searchParams.max_price}
+                    onChange={(e) => setSearchParams({ ...searchParams, max_price: e.target.value })}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
+                  />
+                </label>
+              </div>
+            )}
+          </form>
 
           {loading ? <p className="mt-6 text-sm text-slate-500">Loading vehicles…</p> : null}
           {error ? <p className="mt-6 rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-700 ring-1 ring-rose-200">{error}</p> : null}
 
           {!loading && !error && vehicles.length === 0 ? (
             <div className="mt-6 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center">
-              <p className="text-lg font-semibold text-slate-900">No vehicles yet</p>
-              <p className="mt-2 text-sm text-slate-500">Vehicles added through the API will appear here.</p>
+              <p className="text-lg font-semibold text-slate-900">No vehicles found</p>
+              <p className="mt-2 text-sm text-slate-500">Try adjusting your search filters.</p>
             </div>
           ) : null}
 
           <div className="mt-6 grid gap-4 md:grid-cols-2">
             {vehicles.map((vehicle) => (
-              <article key={vehicle.id} className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.3em] text-brand-700">{vehicle.category}</p>
-                    <h3 className="mt-2 text-2xl font-black tracking-tight text-slate-900">
-                      {vehicle.make} {vehicle.model}
-                    </h3>
+              <article key={vehicle.id} className="flex flex-col justify-between rounded-3xl border border-slate-200 bg-slate-50 p-5 shadow-sm hover:shadow-md transition">
+                <div>
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.3em] text-brand-700">{vehicle.category}</p>
+                      <h3 className="mt-2 text-2xl font-black tracking-tight text-slate-900">
+                        {vehicle.make} {vehicle.model}
+                      </h3>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">
+                        Qty {vehicle.quantity}
+                      </span>
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          onClick={() => handleRestock(vehicle.id)}
+                          className="flex h-6 w-6 items-center justify-center rounded-full bg-brand-100 text-brand-700 transition hover:bg-brand-200 text-xs font-black"
+                          title="Restock (+1)"
+                        >
+                          +
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">
-                    Qty {vehicle.quantity}
-                  </span>
                 </div>
 
-                <div className="mt-6 flex items-end justify-between gap-4">
+                <div className="mt-8 flex items-end justify-between gap-4">
                   <div>
-                    <p className="text-sm text-slate-500">Price</p>
+                    <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Price</p>
                     <p className="text-2xl font-black text-slate-900">${vehicle.price.toLocaleString()}</p>
                   </div>
-                  <button
-                    type="button"
-                    disabled={vehicle.quantity === 0}
-                    className="rounded-full bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500"
-                  >
-                    {vehicle.quantity === 0 ? 'Out of stock' : 'Purchase'}
-                  </button>
+                  <div className="flex flex-col gap-2 items-end">
+                    <button
+                      type="button"
+                      disabled={vehicle.quantity === 0}
+                      onClick={() => handlePurchase(vehicle.id)}
+                      className="rounded-full bg-brand-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500"
+                    >
+                      {vehicle.quantity === 0 ? 'Out of stock' : 'Purchase'}
+                    </button>
+                    {isAdmin && (
+                      <div className="flex gap-2 mt-1">
+                        <button
+                          type="button"
+                          onClick={() => openEditModal(vehicle)}
+                          className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 transition hover:bg-slate-100"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(vehicle.id)}
+                          className="rounded-full border border-rose-100 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-600 transition hover:bg-rose-100"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </article>
             ))}
@@ -234,16 +542,121 @@ function DashboardPage() {
         </section>
       </section>
 
-      <aside className="rounded-[2rem] border border-brand-100 bg-gradient-to-br from-brand-900 via-brand-700 to-brand-600 p-8 text-white shadow-glow">
-        <p className="text-sm font-semibold uppercase tracking-[0.3em] text-brand-100">Workflow</p>
-        <h2 className="mt-3 text-3xl font-black tracking-tight">A clean foundation for inventory operations.</h2>
-        <ul className="mt-6 space-y-4 text-sm leading-6 text-brand-50/90">
-          <li>• Login and register routes are in place</li>
-          <li>• Dashboard layout is ready for live vehicle data</li>
-          <li>• Navigation is shared across all screens</li>
-          <li>• Tailwind utilities handle the full visual system</li>
-        </ul>
+      <aside className="rounded-[2rem] border border-brand-100 bg-gradient-to-br from-brand-900 via-brand-700 to-brand-600 p-8 text-white shadow-glow flex flex-col justify-between">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-[0.3em] text-brand-100">Workflow</p>
+          <h2 className="mt-3 text-3xl font-black tracking-tight">Full-featured dealership control center.</h2>
+          <ul className="mt-6 space-y-4 text-sm leading-6 text-brand-50/90">
+            <li>• Use the search bar to filter by make instantly</li>
+            <li>• Toggle advanced filters for model, category, and price range</li>
+            <li>• Real-time stock decrement on vehicle purchases</li>
+            {isAdmin ? (
+              <li className="text-amber-200 font-medium">• Admin privileges: Add, edit, restock, and delete vehicles enabled</li>
+            ) : (
+              <li>• Admin features are locked (log in as admin to unlock)</li>
+            )}
+          </ul>
+        </div>
       </aside>
+
+      {/* Admin Add/Edit Modal */}
+      {modalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+          <div className="relative w-full max-w-lg rounded-3xl border border-white/85 bg-white/95 p-8 shadow-2xl backdrop-blur transition-all">
+            <button
+              type="button"
+              onClick={() => setModalOpen(false)}
+              className="absolute right-6 top-6 text-slate-400 hover:text-slate-600 transition text-lg"
+            >
+              ✕
+            </button>
+            <h3 className="text-2xl font-black text-slate-900 mb-6">
+              {editingVehicle ? 'Edit Vehicle Details' : 'Add New Vehicle'}
+            </h3>
+            <form onSubmit={handleModalSubmit} className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="block">
+                  <span className="mb-2 block text-sm font-medium text-slate-700">Make</span>
+                  <input
+                    type="text"
+                    required
+                    value={modalForm.make}
+                    onChange={(e) => setModalForm({ ...modalForm, make: e.target.value })}
+                    placeholder="e.g. Toyota"
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-brand-400 focus:ring-4 focus:ring-brand-100"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-2 block text-sm font-medium text-slate-700">Model</span>
+                  <input
+                    type="text"
+                    required
+                    value={modalForm.model}
+                    onChange={(e) => setModalForm({ ...modalForm, model: e.target.value })}
+                    placeholder="e.g. Camry"
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-brand-400 focus:ring-4 focus:ring-brand-100"
+                  />
+                </label>
+              </div>
+
+              <label className="block">
+                <span className="mb-2 block text-sm font-medium text-slate-700">Category</span>
+                <input
+                  type="text"
+                  required
+                  value={modalForm.category}
+                  onChange={(e) => setModalForm({ ...modalForm, category: e.target.value })}
+                  placeholder="e.g. Sedan, SUV, Truck"
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-brand-400 focus:ring-4 focus:ring-brand-100"
+                />
+              </label>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="block">
+                  <span className="mb-2 block text-sm font-medium text-slate-700">Price ($)</span>
+                  <input
+                    type="number"
+                    min="0"
+                    required
+                    value={modalForm.price}
+                    onChange={(e) => setModalForm({ ...modalForm, price: e.target.value })}
+                    placeholder="25000"
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-brand-400 focus:ring-4 focus:ring-brand-100"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-2 block text-sm font-medium text-slate-700">Quantity</span>
+                  <input
+                    type="number"
+                    min="0"
+                    required
+                    value={modalForm.quantity}
+                    onChange={(e) => setModalForm({ ...modalForm, quantity: e.target.value })}
+                    placeholder="5"
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-brand-400 focus:ring-4 focus:ring-brand-100"
+                  />
+                </label>
+              </div>
+
+              <div className="flex gap-3 justify-end pt-4">
+                <button
+                  type="button"
+                  onClick={() => setModalOpen(false)}
+                  className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="rounded-2xl bg-brand-600 px-6 py-3 text-sm font-semibold text-white shadow-glow transition hover:bg-brand-700"
+                >
+                  {editingVehicle ? 'Save Changes' : 'Add Vehicle'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -315,7 +728,7 @@ function LoginPage() {
 
 function RegisterPage() {
   const navigate = useNavigate()
-  const [form, setForm] = useState({ email: '', password: '' })
+  const [form, setForm] = useState({ email: '', password: '', confirmPassword: '' })
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -327,11 +740,18 @@ function RegisterPage() {
   const handleSubmit = async (event) => {
     event.preventDefault()
     setError('')
+
+    if (form.password !== form.confirmPassword) {
+      setError('Passwords do not match.')
+      return
+    }
+
     setIsSubmitting(true)
 
     try {
-      await registerUser(form)
-      const response = await loginUser(form)
+      const payload = { email: form.email, password: form.password }
+      await registerUser(payload)
+      const response = await loginUser(payload)
       setStoredToken(response.access_token)
       navigate('/', { replace: true })
     } catch (submissionError) {
@@ -363,6 +783,17 @@ function RegisterPage() {
             value={form.password}
             onChange={handleChange}
             placeholder="Create a secure password"
+            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-brand-400 focus:ring-4 focus:ring-brand-100"
+          />
+        </label>
+        <label className="block">
+          <span className="mb-2 block text-sm font-medium text-slate-700">Confirm Password</span>
+          <input
+            type="password"
+            name="confirmPassword"
+            value={form.confirmPassword}
+            onChange={handleChange}
+            placeholder="Confirm your password"
             className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-brand-400 focus:ring-4 focus:ring-brand-100"
           />
         </label>
