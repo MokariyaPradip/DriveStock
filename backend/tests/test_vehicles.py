@@ -53,7 +53,10 @@ def register_and_login(client: TestClient) -> str:
 def test_vehicle_endpoints_require_authentication(client_and_session_factory, method, url, payload):
     client, _ = client_and_session_factory
 
-    response = getattr(client, method)(url, json=payload)
+    if payload is None:
+        response = getattr(client, method)(url)
+    else:
+        response = getattr(client, method)(url, json=payload)
 
     assert response.status_code == 401
 
