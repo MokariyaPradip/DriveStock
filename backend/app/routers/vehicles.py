@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
+from sqlalchemy import and_, select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -33,4 +34,34 @@ def list_vehicles(
     db: Session = Depends(get_db),
     _: object = Depends(get_current_user),
 ) -> list[Vehicle]:
-    return db.query(Vehicle).order_by(Vehicle.id.asc()).all()
+    return db.scalars(select(Vehicle).order_by(Vehicle.id.asc())).all()
+
+
+@router.get("/search", response_model=list[VehicleRead])
+def search_vehicles(
+    make: str | None = Query(default=None),
+    model: str | None = Query(default=None),
+    category: str | None = Query(default=None),
+    min_price: int | None = Query(default=None, ge=0),
+    max_price: int | None = Query(default=None, ge=0),
+    db: Session = Depends(get_db),
+    _: object = Depends(get_current_user),
+) -> list[Vehicle]:
+    conditions = []
+
+    if make:
+        conditions.append(Vehicle.make.ilike(f"%{make.strip()}%"))
+    if model:
+        conditions.append(Vehicle.model.ilike(f"%{model.strip()}%"))
+    if category:
+        conditions.append(Vehicle.category.ilike(f"%{category.strip()}%"))
+    if min_price is not None:
+        conditions.append(Vehicle.price >= min_price)
+    if max_price is not None:
+        conditions.append(Vehicle.price <= max_price)
+
+    query = select(Vehicle).order_by(Vehicle.id.asc())
+    if conditions:
+        query = query.where(and_(*conditions))
+
+    return db.scalars(query).all()
