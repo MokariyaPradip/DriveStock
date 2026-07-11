@@ -139,6 +139,89 @@ def create_vehicle(client: TestClient, token: str, payload: dict) -> None:
     assert response.status_code == 201
 
 
+def test_update_vehicle_returns_updated_vehicle_for_authenticated_user(client_and_session_factory):
+    client, _ = client_and_session_factory
+    token = register_and_login(client)
+    original_payload = {
+        "make": "Toyota",
+        "model": "Corolla",
+        "category": "Sedan",
+        "price": 25000,
+        "quantity": 5,
+    }
+
+    create_response = client.post(
+        "/api/vehicles",
+        json=original_payload,
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert create_response.status_code == 201
+    vehicle_id = create_response.json()["id"]
+
+    update_payload = {
+        "make": "Toyota",
+        "model": "Camry",
+        "category": "Sedan",
+        "price": 28000,
+        "quantity": 4,
+    }
+
+    response = client.put(
+        f"/api/vehicles/{vehicle_id}",
+        json=update_payload,
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["id"] == vehicle_id
+    assert data["make"] == update_payload["make"]
+    assert data["model"] == update_payload["model"]
+    assert data["category"] == update_payload["category"]
+    assert data["price"] == update_payload["price"]
+    assert data["quantity"] == update_payload["quantity"]
+
+
+def test_update_vehicle_requires_all_fields_when_authenticated(client_and_session_factory):
+    client, _ = client_and_session_factory
+    token = register_and_login(client)
+
+    create_response = client.post(
+        "/api/vehicles",
+        json={"make": "Toyota", "model": "Corolla", "category": "Sedan", "price": 25000, "quantity": 5},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert create_response.status_code == 201
+    vehicle_id = create_response.json()["id"]
+
+    response = client.put(
+        f"/api/vehicles/{vehicle_id}",
+        json={"make": "Toyota", "model": "Camry"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 422
+
+
+def test_update_missing_vehicle_returns_not_found(client_and_session_factory):
+    client, _ = client_and_session_factory
+    token = register_and_login(client)
+
+    response = client.put(
+        "/api/vehicles/9999",
+        json={
+            "make": "Toyota",
+            "model": "Camry",
+            "category": "Sedan",
+            "price": 28000,
+            "quantity": 4,
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 404
+
+
 def test_search_vehicles_by_make(client_and_session_factory):
     client, _ = client_and_session_factory
     token = register_and_login(client)
