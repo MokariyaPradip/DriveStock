@@ -1,6 +1,10 @@
 # DriveStock 🚗💼
 > A modern, full-stack Car Dealership Inventory Control System built using **FastAPI** (Python) and **React** (Vite + Tailwind CSS).
 
+🔗 **Live Deployments**:
+- **Frontend (Vercel)**: [https://drive-stock.vercel.app/](https://drive-stock.vercel.app/)
+- **Backend (Render)**: [https://drivestock.onrender.com](https://drivestock.onrender.com)
+
 DriveStock provides car dealerships with a beautiful, responsive, and secure dashboard to track, search, edit, purchase, and restock vehicles. It features role-based access control, real-time stock indicators, and robust input validations.
 
 ---
