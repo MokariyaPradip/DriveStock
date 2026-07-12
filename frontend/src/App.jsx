@@ -24,6 +24,7 @@ function ShellLayout({ children }) {
   const location = useLocation()
   const navigate = useNavigate()
   const isAuthPage = location.pathname === '/login' || location.pathname === '/register'
+  const [menuOpen, setMenuOpen] = useState(false)
 
   const payload = getStoredTokenPayload()
   const userEmail = payload?.sub || ''
@@ -44,17 +45,31 @@ function ShellLayout({ children }) {
       {!isAuthPage && (
         <header className="sticky top-0 z-20 border-b border-white/70 bg-white/80 backdrop-blur-xl">
           <div className="mx-auto flex flex-col gap-4 py-4 px-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
-            <NavLink to="/" className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brand-600 text-lg font-black text-white shadow-glow">
-                D
-              </div>
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.25em] text-brand-700">DriveStock</p>
-                <p className="text-xs text-slate-500">Inventory control for dealerships</p>
-              </div>
-            </NavLink>
+            <div className="flex w-full items-center justify-between md:w-auto">
+              <NavLink to="/" className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brand-600 text-lg font-black text-white shadow-glow">
+                  D
+                </div>
+                <div>
+                  <p className="text-sm font-semibold uppercase tracking-[0.25em] text-brand-700">DriveStock</p>
+                  <p className="text-xs text-slate-500">Inventory control for dealerships</p>
+                </div>
+              </NavLink>
 
-            <nav className="flex flex-wrap items-center gap-2">
+              {/* Mobile menu trigger */}
+              <button
+                type="button"
+                onClick={() => setMenuOpen(true)}
+                className="flex md:hidden h-10 w-10 items-center justify-center rounded-xl bg-slate-100 hover:bg-slate-200 transition text-slate-600"
+              >
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Desktop navigation */}
+            <nav className="hidden md:flex items-center gap-2">
               <NavLink to="/" className={navLinkClass}>
                 Inventory
               </NavLink>
@@ -99,6 +114,106 @@ function ShellLayout({ children }) {
             </nav>
           </div>
         </header>
+      )}
+
+      {/* Mobile Drawer Sidebar */}
+      {menuOpen && !isAuthPage && (
+        <div className="fixed inset-0 z-50 flex">
+          {/* Backdrop overlay */}
+          <div 
+            className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity duration-300"
+            onClick={() => setMenuOpen(false)}
+          />
+          
+          {/* Drawer content panel */}
+          <div className="relative flex w-full max-w-xs flex-col bg-white p-6 shadow-2xl transition-transform duration-300 ease-in-out z-10 animate-slide-in">
+            {/* Header / Close button */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-6">
+              <span className="text-sm font-semibold uppercase tracking-wider text-slate-400">Navigation</span>
+              <button
+                type="button"
+                onClick={() => setMenuOpen(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition"
+              >
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Links */}
+            <div className="flex flex-col gap-3">
+              <NavLink 
+                to="/" 
+                onClick={() => setMenuOpen(false)}
+                className={({ isActive }) =>
+                  [
+                    'flex w-full items-center rounded-xl px-4 py-3 text-sm font-semibold transition',
+                    isActive ? 'bg-brand-50 text-brand-700 shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900',
+                  ].join(' ')
+                }
+              >
+                Inventory
+              </NavLink>
+              
+              {isAuthenticated() ? (
+                <>
+                  {/* Divider */}
+                  <hr className="my-2 border-slate-100" />
+                  
+                  {/* User Profile details */}
+                  <div className="rounded-2xl bg-slate-50 p-4 mb-2">
+                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Signed in as</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-800 truncate" title={userEmail}>
+                      {userEmail}
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false)
+                      handleLogout()
+                    }}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 hover:bg-slate-850 px-4 py-3 text-sm font-semibold text-white transition shadow-md"
+                  >
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    </svg>
+                    Log out
+                  </button>
+                </>
+              ) : (
+                <>
+                  <NavLink 
+                    to="/login" 
+                    onClick={() => setMenuOpen(false)}
+                    className={({ isActive }) =>
+                      [
+                        'flex w-full items-center rounded-xl px-4 py-3 text-sm font-semibold transition',
+                        isActive ? 'bg-brand-50 text-brand-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900',
+                      ].join(' ')
+                    }
+                  >
+                    Login
+                  </NavLink>
+                  <NavLink 
+                    to="/register" 
+                    onClick={() => setMenuOpen(false)}
+                    className={({ isActive }) =>
+                      [
+                        'flex w-full items-center rounded-xl px-4 py-3 text-sm font-semibold transition',
+                        isActive ? 'bg-brand-50 text-brand-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900',
+                      ].join(' ')
+                    }
+                  >
+                    Register
+                  </NavLink>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
       <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
@@ -166,6 +281,17 @@ function DashboardPage() {
     price: '',
     quantity: '',
   })
+
+  const [actionLoading, setActionLoading] = useState({})
+  const [toasts, setToasts] = useState([])
+
+  const showToast = (message, type = 'success') => {
+    const id = Date.now() + Math.random()
+    setToasts((prev) => [...prev, { id, message, type }])
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id))
+    }, 3000)
+  }
 
   useEffect(() => {
     const currentToken = getStoredToken()
@@ -269,41 +395,65 @@ function DashboardPage() {
   }
 
   // Purchase logic
-  const handlePurchase = async (vehicleId) => {
-    try {
-      setError('')
-      const updated = await purchaseVehicle(vehicleId)
-      setVehicles((current) =>
-        current.map((v) => (v.id === vehicleId ? updated : v))
-      )
-    } catch (err) {
-      setError(err?.response?.data?.detail || 'Purchase failed.')
-    }
+  const handlePurchase = async (vehicleId, vehicleName) => {
+    setActionLoading((prev) => ({ ...prev, [`purchase-${vehicleId}`]: true }))
+    setError('')
+    setTimeout(async () => {
+      try {
+        const updated = await purchaseVehicle(vehicleId)
+        setVehicles((current) =>
+          current.map((v) => (v.id === vehicleId ? updated : v))
+        )
+        showToast(`Successfully purchased ${vehicleName}!`, 'success')
+      } catch (err) {
+        const errMsg = err?.response?.data?.detail || 'Purchase failed.'
+        setError(errMsg)
+        showToast(errMsg, 'error')
+      } finally {
+        setActionLoading((prev) => ({ ...prev, [`purchase-${vehicleId}`]: false }))
+      }
+    }, 1000)
   }
 
   // Restock logic (Admin only)
-  const handleRestock = async (vehicleId) => {
-    try {
-      setError('')
-      const updated = await restockVehicle(vehicleId)
-      setVehicles((current) =>
-        current.map((v) => (v.id === vehicleId ? updated : v))
-      )
-    } catch (err) {
-      setError(err?.response?.data?.detail || 'Restock failed.')
-    }
+  const handleRestock = async (vehicleId, vehicleName) => {
+    setActionLoading((prev) => ({ ...prev, [`restock-${vehicleId}`]: true }))
+    setError('')
+    setTimeout(async () => {
+      try {
+        const updated = await restockVehicle(vehicleId)
+        setVehicles((current) =>
+          current.map((v) => (v.id === vehicleId ? updated : v))
+        )
+        showToast(`Successfully restocked ${vehicleName} (+1)!`, 'success')
+      } catch (err) {
+        const errMsg = err?.response?.data?.detail || 'Restock failed.'
+        setError(errMsg)
+        showToast(errMsg, 'error')
+      } finally {
+        setActionLoading((prev) => ({ ...prev, [`restock-${vehicleId}`]: false }))
+      }
+    }, 1000)
   }
 
   // Delete logic (Admin only)
-  const handleDelete = async (vehicleId) => {
+  const handleDelete = async (vehicleId, vehicleName) => {
     if (!window.confirm('Are you sure you want to delete this vehicle?')) return
-    try {
-      setError('')
-      await deleteVehicle(vehicleId)
-      setVehicles((current) => current.filter((v) => v.id !== vehicleId))
-    } catch (err) {
-      setError(err?.response?.data?.detail || 'Delete failed.')
-    }
+    setActionLoading((prev) => ({ ...prev, [`delete-${vehicleId}`]: true }))
+    setError('')
+    setTimeout(async () => {
+      try {
+        await deleteVehicle(vehicleId)
+        setVehicles((current) => current.filter((v) => v.id !== vehicleId))
+        showToast(`Successfully deleted ${vehicleName}!`, 'success')
+      } catch (err) {
+        const errMsg = err?.response?.data?.detail || 'Delete failed.'
+        setError(errMsg)
+        showToast(errMsg, 'error')
+      } finally {
+        setActionLoading((prev) => ({ ...prev, [`delete-${vehicleId}`]: false }))
+      }
+    }, 1000)
   }
 
   // Modal Form helpers
@@ -348,20 +498,31 @@ function DashboardPage() {
       quantity: parseInt(modalForm.quantity) || 0,
     }
 
-    try {
-      if (editingVehicle) {
-        const updated = await updateVehicle(editingVehicle.id, payload)
-        setVehicles((current) =>
-          current.map((v) => (v.id === editingVehicle.id ? updated : v))
-        )
-      } else {
-        const created = await createVehicle(payload)
-        setVehicles((current) => [...current, created])
+    const actionKey = editingVehicle ? 'edit-modal' : 'add-modal'
+    setActionLoading((prev) => ({ ...prev, [actionKey]: true }))
+
+    setTimeout(async () => {
+      try {
+        if (editingVehicle) {
+          const updated = await updateVehicle(editingVehicle.id, payload)
+          setVehicles((current) =>
+            current.map((v) => (v.id === editingVehicle.id ? updated : v))
+          )
+          showToast(`Successfully updated ${payload.make} ${payload.model}!`, 'success')
+        } else {
+          const created = await createVehicle(payload)
+          setVehicles((current) => [...current, created])
+          showToast(`Successfully added ${payload.make} ${payload.model}!`, 'success')
+        }
+        setModalOpen(false)
+      } catch (err) {
+        const errMsg = err?.response?.data?.detail || 'Failed to save vehicle details.'
+        setError(errMsg)
+        showToast(errMsg, 'error')
+      } finally {
+        setActionLoading((prev) => ({ ...prev, [actionKey]: false }))
       }
-      setModalOpen(false)
-    } catch (err) {
-      setError(err?.response?.data?.detail || 'Failed to save vehicle details.')
-    }
+    }, 1000)
   }
 
   return (
@@ -567,10 +728,95 @@ function DashboardPage() {
           </div>
         ) : null}
 
-        <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <div className={isAdmin ? "mt-6 flex flex-col gap-4" : "mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3"}>
           {vehicles.map((vehicle) => {
             const isLowStock = vehicle.quantity > 0 && vehicle.quantity < 3
             const isOutOfStock = vehicle.quantity === 0
+
+            if (isAdmin) {
+              return (
+                <article
+                  key={vehicle.id}
+                  className="flex flex-col md:flex-row md:items-center justify-between rounded-2xl border border-slate-100 bg-white p-5 hover:shadow-md transition duration-300 gap-4"
+                >
+                  <div className="flex flex-1 items-center gap-4 min-w-0">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand-50 text-brand-600">
+                      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l2.414 2.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" />
+                      </svg>
+                    </div>
+                    <div className="truncate">
+                      <h3 className="text-base font-extrabold text-slate-800 truncate">
+                        {vehicle.make} {vehicle.model}
+                      </h3>
+                      <span className="inline-flex mt-1 items-center rounded-md bg-brand-50 px-2 py-0.5 text-[10px] font-bold text-brand-700 uppercase tracking-wider">
+                        {vehicle.category}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-1 flex-row items-center justify-between md:justify-around gap-4 min-w-0">
+                    <div>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Price</p>
+                      <p className="text-base font-black text-slate-900 mt-0.5">₹{vehicle.price.toLocaleString('en-IN')}</p>
+                    </div>
+
+                    <div>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Stock Status</p>
+                      <div className="flex items-center gap-1.5 mt-1.5">
+                        <span className={`h-2.5 w-2.5 rounded-full ${
+                          isOutOfStock ? 'bg-rose-500 animate-pulse' : isLowStock ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'
+                        }`} />
+                        <span className="text-xs font-semibold text-slate-600">
+                          {isOutOfStock ? 'Out of stock' : isLowStock ? `Low stock (${vehicle.quantity})` : `${vehicle.quantity} available`}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 justify-end self-end md:self-auto shrink-0">
+                    <button
+                      type="button"
+                      disabled={actionLoading[`restock-${vehicle.id}`]}
+                      onClick={() => handleRestock(vehicle.id, `${vehicle.make} ${vehicle.model}`)}
+                      className="rounded-xl bg-slate-950 hover:bg-slate-800 text-white shadow-sm px-4 py-2 text-xs font-semibold transition duration-205 inline-flex items-center justify-center min-w-[90px] disabled:opacity-75 disabled:cursor-not-allowed"
+                    >
+                      {actionLoading[`restock-${vehicle.id}`] ? (
+                        <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={4} />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
+                      ) : (
+                        'Restock (+1)'
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openEditModal(vehicle)}
+                      className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-800"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      disabled={actionLoading[`delete-${vehicle.id}`]}
+                      onClick={() => handleDelete(vehicle.id, `${vehicle.make} ${vehicle.model}`)}
+                      className="rounded-xl border border-rose-105 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-600 transition hover:bg-rose-100 disabled:opacity-75 disabled:cursor-not-allowed inline-flex items-center justify-center min-w-[60px]"
+                    >
+                      {actionLoading[`delete-${vehicle.id}`] ? (
+                        <svg className="animate-spin h-4 w-4 text-rose-600" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={4} />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
+                      ) : (
+                        'Delete'
+                      )}
+                    </button>
+                  </div>
+                </article>
+              )
+            }
 
             return (
               <article
@@ -611,10 +857,18 @@ function DashboardPage() {
                       <div className="flex flex-col gap-2 items-end">
                         <button
                           type="button"
-                          onClick={() => handleRestock(vehicle.id)}
-                          className="rounded-2xl bg-slate-950 hover:bg-slate-800 text-white shadow-glow px-5 py-2.5 text-sm font-semibold transition duration-200"
+                          disabled={actionLoading[`restock-${vehicle.id}`]}
+                          onClick={() => handleRestock(vehicle.id, `${vehicle.make} ${vehicle.model}`)}
+                          className="rounded-2xl bg-slate-950 hover:bg-slate-800 text-white shadow-glow px-5 py-2.5 text-sm font-semibold transition duration-200 inline-flex items-center justify-center min-w-[110px] disabled:opacity-75 disabled:cursor-not-allowed"
                         >
-                          Restock (+1)
+                          {actionLoading[`restock-${vehicle.id}`] ? (
+                            <svg className="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={4} />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                            </svg>
+                          ) : (
+                            'Restock (+1)'
+                          )}
                         </button>
                         <div className="flex gap-1.5">
                           <button
@@ -626,21 +880,36 @@ function DashboardPage() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => handleDelete(vehicle.id)}
-                            className="rounded-xl border border-rose-100 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-600 transition hover:bg-rose-100"
+                            disabled={actionLoading[`delete-${vehicle.id}`]}
+                            onClick={() => handleDelete(vehicle.id, `${vehicle.make} ${vehicle.model}`)}
+                            className="rounded-xl border border-rose-100 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-600 transition hover:bg-rose-100 disabled:opacity-75 disabled:cursor-not-allowed inline-flex items-center justify-center min-w-[60px]"
                           >
-                            Delete
+                            {actionLoading[`delete-${vehicle.id}`] ? (
+                              <svg className="animate-spin h-4 w-4 text-rose-600" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={4} />
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                              </svg>
+                            ) : (
+                              'Delete'
+                            )}
                           </button>
                         </div>
                       </div>
                     ) : (
                       <button
                         type="button"
-                        disabled={isOutOfStock}
-                        onClick={() => handlePurchase(vehicle.id)}
-                        className="rounded-2xl bg-brand-600 hover:bg-brand-700 text-white shadow-glow hover:shadow-brand px-6 py-2.5 text-sm font-semibold transition duration-200 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 disabled:shadow-none"
+                        disabled={isOutOfStock || actionLoading[`purchase-${vehicle.id}`]}
+                        onClick={() => handlePurchase(vehicle.id, `${vehicle.make} ${vehicle.model}`)}
+                        className="rounded-2xl bg-brand-600 hover:bg-brand-700 text-white shadow-glow hover:shadow-brand px-6 py-2.5 text-sm font-semibold transition duration-200 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 disabled:shadow-none inline-flex items-center justify-center min-w-[100px]"
                       >
-                        {isOutOfStock ? 'Sold Out' : 'Purchase'}
+                        {actionLoading[`purchase-${vehicle.id}`] ? (
+                          <svg className="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={4} />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                          </svg>
+                        ) : (
+                          isOutOfStock ? 'Sold Out' : 'Purchase'
+                        )}
                       </button>
                     )}
                   </div>
@@ -745,15 +1014,46 @@ function DashboardPage() {
                 </button>
                 <button
                   type="submit"
-                  className="rounded-2xl bg-brand-600 px-6 py-3 text-sm font-semibold text-white shadow-glow transition hover:bg-brand-700"
+                  disabled={actionLoading['edit-modal'] || actionLoading['add-modal']}
+                  className="rounded-2xl bg-brand-600 px-6 py-3 text-sm font-semibold text-white shadow-glow transition hover:bg-brand-700 inline-flex items-center justify-center min-w-[120px] disabled:opacity-75 disabled:cursor-not-allowed"
                 >
-                  {editingVehicle ? 'Save Changes' : 'Add Vehicle'}
+                  {actionLoading['edit-modal'] || actionLoading['add-modal'] ? (
+                    <svg className="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={4} />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                  ) : (
+                    editingVehicle ? 'Save Changes' : 'Add Vehicle'
+                  )}
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
+
+      {/* Toast Notifications */}
+      <div className="fixed bottom-5 right-5 z-50 flex flex-col gap-2">
+        {toasts.map((toast) => (
+          <div
+            key={toast.id}
+            className={`flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold text-white shadow-lg animate-fade-in ${
+              toast.type === 'error' ? 'bg-rose-600' : 'bg-emerald-600'
+            }`}
+          >
+            {toast.type === 'error' ? (
+              <svg className="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            ) : (
+              <svg className="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            )}
+            <span>{toast.message}</span>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
@@ -763,6 +1063,7 @@ function LoginPage() {
   const [form, setForm] = useState({ email: '', password: '' })
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
 
   const handleChange = (event) => {
     const { name, value } = event.target
@@ -802,14 +1103,32 @@ function LoginPage() {
           </label>
           <label className="block">
             <span className="mb-2 block text-sm font-medium text-slate-700">Password</span>
-            <input
-              type="password"
-              name="password"
-              value={form.password}
-              onChange={handleChange}
-              placeholder="••••••••"
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-brand-400 focus:ring-4 focus:ring-brand-100"
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                name="password"
+                value={form.password}
+                onChange={handleChange}
+                placeholder="••••••••"
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 pr-12 text-sm outline-none transition placeholder:text-slate-400 focus:border-brand-400 focus:ring-4 focus:ring-brand-100"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition"
+              >
+                {showPassword ? (
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
+                  </svg>
+                ) : (
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
+                )}
+              </button>
+            </div>
           </label>
           {error ? <p className="rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-700 ring-1 ring-rose-200">{error}</p> : null}
           <button
@@ -836,6 +1155,8 @@ function RegisterPage() {
   const [form, setForm] = useState({ email: '', password: '', confirmPassword: '' })
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
   const handleChange = (event) => {
     const { name, value } = event.target
@@ -883,25 +1204,61 @@ function RegisterPage() {
           </label>
           <label className="block">
             <span className="mb-2 block text-sm font-medium text-slate-700">Password</span>
-            <input
-              type="password"
-              name="password"
-              value={form.password}
-              onChange={handleChange}
-              placeholder="Create a secure password"
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-brand-400 focus:ring-4 focus:ring-brand-100"
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                name="password"
+                value={form.password}
+                onChange={handleChange}
+                placeholder="Create a secure password"
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 pr-12 text-sm outline-none transition placeholder:text-slate-400 focus:border-brand-400 focus:ring-4 focus:ring-brand-100"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition"
+              >
+                {showPassword ? (
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
+                  </svg>
+                ) : (
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
+                )}
+              </button>
+            </div>
           </label>
           <label className="block">
             <span className="mb-2 block text-sm font-medium text-slate-700">Confirm Password</span>
-            <input
-              type="password"
-              name="confirmPassword"
-              value={form.confirmPassword}
-              onChange={handleChange}
-              placeholder="Confirm your password"
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-brand-400 focus:ring-4 focus:ring-brand-100"
-            />
+            <div className="relative">
+              <input
+                type={showConfirmPassword ? 'text' : 'password'}
+                name="confirmPassword"
+                value={form.confirmPassword}
+                onChange={handleChange}
+                placeholder="Confirm your password"
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 pr-12 text-sm outline-none transition placeholder:text-slate-400 focus:border-brand-400 focus:ring-4 focus:ring-brand-100"
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition"
+              >
+                {showConfirmPassword ? (
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
+                  </svg>
+                ) : (
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
+                )}
+              </button>
+            </div>
           </label>
           {error ? <p className="rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-700 ring-1 ring-rose-200">{error}</p> : null}
           <button
