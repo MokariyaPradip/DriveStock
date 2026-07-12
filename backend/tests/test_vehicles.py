@@ -500,3 +500,69 @@ def test_search_vehicles_by_price_range(client_and_session_factory):
     data = response.json()
     assert len(data) == 1
     assert data[0]["price"] == 25000
+
+
+def test_create_duplicate_vehicle_returns_bad_request(client_and_session_factory):
+    client, _ = client_and_session_factory
+    token = register_and_login(client)
+    payload = {
+        "make": "Toyota",
+        "model": "Corolla",
+        "category": "Sedan",
+        "price": 25000,
+        "quantity": 5,
+    }
+
+    # First creation should succeed
+    response1 = client.post(
+        "/api/vehicles",
+        json=payload,
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response1.status_code == 201
+
+    # Second creation with identical make, model, category, price should fail
+    response2 = client.post(
+        "/api/vehicles",
+        json=payload,
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response2.status_code == 400
+    assert "already exists" in response2.json()["detail"]
+
+
+def test_update_vehicle_to_duplicate_returns_bad_request(client_and_session_factory):
+    client, _ = client_and_session_factory
+    token = register_and_login(client)
+    
+    # Create vehicle 1
+    v1 = client.post(
+        "/api/vehicles",
+        json={"make": "Toyota", "model": "Corolla", "category": "Sedan", "price": 25000, "quantity": 5},
+        headers={"Authorization": f"Bearer {token}"},
+    ).json()
+    
+    # Create vehicle 2
+    v2 = client.post(
+        "/api/vehicles",
+        json={"make": "Honda", "model": "Civic", "category": "Sedan", "price": 27000, "quantity": 3},
+        headers={"Authorization": f"Bearer {token}"},
+    ).json()
+
+    # Attempting to update vehicle 2 to match vehicle 1 should fail
+    response = client.put(
+        f"/api/vehicles/{v2['id']}",
+        json={"make": "Toyota", "model": "Corolla", "category": "Sedan", "price": 25000, "quantity": 3},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 400
+    assert "already exists" in response.json()["detail"]
+
+    # Updating vehicle 2 to change only quantity should succeed
+    response_ok = client.put(
+        f"/api/vehicles/{v2['id']}",
+        json={"make": "Honda", "model": "Civic", "category": "Sedan", "price": 27000, "quantity": 42},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response_ok.status_code == 200
+    assert response_ok.json()["quantity"] == 42

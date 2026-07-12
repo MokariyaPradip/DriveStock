@@ -38,6 +38,22 @@ def create_vehicle(
     db: Session = Depends(get_db),
     _: object = Depends(get_current_user),
 ) -> Vehicle:
+    existing = db.scalar(
+        select(Vehicle).where(
+            and_(
+                Vehicle.make.ilike(payload.make.strip()),
+                Vehicle.model.ilike(payload.model.strip()),
+                Vehicle.category.ilike(payload.category.strip()),
+                Vehicle.price == payload.price,
+            )
+        )
+    )
+    if existing is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A vehicle with this make, model, category, and price already exists.",
+        )
+
     vehicle = Vehicle()
     apply_vehicle_payload(vehicle, payload)
     db.add(vehicle)
@@ -89,6 +105,23 @@ def update_vehicle(
     db: Session = Depends(get_db),
     _: object = Depends(get_current_user),
 ) -> Vehicle:
+    existing = db.scalar(
+        select(Vehicle).where(
+            and_(
+                Vehicle.id != vehicle_id,
+                Vehicle.make.ilike(payload.make.strip()),
+                Vehicle.model.ilike(payload.model.strip()),
+                Vehicle.category.ilike(payload.category.strip()),
+                Vehicle.price == payload.price,
+            )
+        )
+    )
+    if existing is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A vehicle with this make, model, category, and price already exists.",
+        )
+
     vehicle = apply_vehicle_payload(get_vehicle_or_404(db, vehicle_id), payload)
     return save_vehicle(db, vehicle)
 
